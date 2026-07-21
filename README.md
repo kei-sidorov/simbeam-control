@@ -8,6 +8,17 @@ The current implementation is verified with Xcode 26.4.1 on macOS 26.5 and has a
 deployment target. It dynamically uses the CoreSimulator installation already present on a Mac
 that has completed Xcode first-launch setup; no private framework is bundled with the executable.
 
+## Install with Homebrew
+
+The universal release is available from the simbeam tap:
+
+```sh
+brew install kei-sidorov/simbeam/simbeam-control
+```
+
+The formula requires a full Xcode 26.4.1 or newer installation because the executable uses the
+CoreSimulator and SimulatorKit frameworks supplied by Xcode.
+
 ## Build
 
 Full Xcode is required and should be selected with `xcode-select`.

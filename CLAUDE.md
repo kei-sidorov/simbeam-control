@@ -128,7 +128,9 @@ idb code when a small local implementation is straightforward.
 GitHub Actions uses the official `macos-26` runner and explicitly selects Xcode 26.4.1. Pushes and
 pull requests run static analysis plus a universal build. Tags matching `v*` create a GitHub
 Release containing `simbeam-control_<version>_darwin_universal.tar.gz` with the executable under
-`bin/`; this stable layout is intended for the `kei-sidorov/homebrew-simbeam` tap.
+`bin/`; the `kei-sidorov/homebrew-simbeam` tap publishes it as
+`kei-sidorov/simbeam/simbeam-control`. The formula has been validated with strict online audit,
+installation, `brew test`, and universal-architecture inspection.
 
 Universal release build:
 
