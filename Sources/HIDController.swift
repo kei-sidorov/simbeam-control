@@ -63,7 +63,12 @@ final class HIDController: @unchecked Sendable {
     ObjCBool
   ) -> UnsafeMutablePointer<IndigoMessage>
 
+  // queue runs one gesture at a time to completion, so concurrent taps never
+  // overlap into a multi-finger touch; completionQueue receives the HID client's
+  // async delivery callbacks so a gesture can block on `queue` waiting for them
+  // without deadlocking against itself.
   private let queue = DispatchQueue(label: "com.simbeam.control.hid", qos: .userInteractive)
+  private let completionQueue = DispatchQueue(label: "com.simbeam.control.hid.completion")
   private let udid: UUID
   private let pointSize: CGSize
   private let pixelSize: CGSize
@@ -128,11 +133,10 @@ final class HIDController: @unchecked Sendable {
       guard let self else { return }
       do {
         try validate(x: x, y: y)
-        let events = [
+        perform([
           ScheduledTouch(delay: 0, data: touchData(direction: .down, x: x, y: y)),
           ScheduledTouch(delay: 0.01, data: touchData(direction: .up, x: x, y: y)),
-        ]
-        send(events, at: 0)
+        ])
       } catch {
         Log.message("tap failed: \(error.localizedDescription)")
       }
@@ -164,7 +168,7 @@ final class HIDController: @unchecked Sendable {
         events.append(ScheduledTouch(
           delay: 0,
           data: touchData(direction: .up, x: x2, y: y2)))
-        send(events, at: 0)
+        perform(events)
       } catch {
         Log.message("swipe failed: \(error.localizedDescription)")
       }
@@ -174,7 +178,7 @@ final class HIDController: @unchecked Sendable {
   func home() {
     queue.async { [weak self] in
       guard let self else { return }
-      let events = [
+      self.perform([
         ScheduledTouch(delay: 0, data: buttonData(
           source: UInt32(ButtonEventSourceHomeButton),
           target: UInt32(ButtonEventTargetHardware),
@@ -183,8 +187,7 @@ final class HIDController: @unchecked Sendable {
           source: UInt32(ButtonEventSourceHomeButton),
           target: UInt32(ButtonEventTargetHardware),
           direction: UInt32(ButtonEventTypeUp), keyCode: 0)),
-      ]
-      send(events, at: 0)
+      ])
     }
   }
 
@@ -205,7 +208,7 @@ final class HIDController: @unchecked Sendable {
       if shift {
         events.append(ScheduledTouch(delay: 0, data: keyData(usage: shiftUsage, direction: UInt32(ButtonEventTypeUp))))
       }
-      send(events, at: 0)
+      self.perform(events)
     }
   }
 
@@ -308,24 +311,33 @@ final class HIDController: @unchecked Sendable {
     return Data(bytesNoCopy: destination, count: messageSize, deallocator: .free)
   }
 
-  private func send(_ events: [ScheduledTouch], at index: Int) {
-    guard index < events.count else { return }
-    let event = events[index]
-    let performSend = { [weak self] in
-      guard let self else { return }
-      self.send(event.data) { error in
-        if let error {
-          Log.message("HID delivery failed: \(error.localizedDescription)")
-          return
-        }
-        self.send(events, at: index + 1)
+  // perform delivers a gesture's events in order on `queue`, blocking until each
+  // event's HID delivery completes before moving on. Because `queue` is serial,
+  // one gesture finishes entirely before the next begins — so rapid taps stay
+  // discrete instead of collapsing into a simultaneous multi-finger touch. Must
+  // be called on `queue`.
+  private func perform(_ events: [ScheduledTouch]) {
+    for event in events {
+      if event.delay > 0 {
+        Thread.sleep(forTimeInterval: event.delay)
       }
+      deliver(event.data)
     }
-    if event.delay > 0 {
-      queue.asyncAfter(deadline: .now() + event.delay, execute: performSend)
-    } else {
-      performSend()
+  }
+
+  // deliver sends one Indigo message and waits for the client's completion. The
+  // callback lands on completionQueue (not `queue`, which we are blocking), so
+  // there is no self-deadlock. The 1s cap keeps a wedged/disconnected client
+  // from hanging shutdown (disconnect() takes `queue` via sync).
+  private func deliver(_ data: Data) {
+    let done = DispatchSemaphore(value: 0)
+    send(data) { error in
+      if let error {
+        Log.message("HID delivery failed: \(error.localizedDescription)")
+      }
+      done.signal()
     }
+    _ = done.wait(timeout: .now() + 1)
   }
 
   private func send(_ data: Data, completion: @escaping @Sendable (Error?) -> Void) {
@@ -340,7 +352,7 @@ final class HIDController: @unchecked Sendable {
     unsafeBitCast(client, to: SimDeviceLegacyHIDClientMessaging.self).send(
       withMessage: raw,
       freeWhenDone: true,
-      completionQueue: queue,
+      completionQueue: completionQueue,
       completion: completion)
   }
 }
