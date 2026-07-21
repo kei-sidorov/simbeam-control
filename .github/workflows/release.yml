@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v* tag to publish or backfill
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,9 +17,13 @@ jobs:
   release:
     runs-on: macos-26
     timeout-minutes: 20
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Select Xcode 26.4.1
         run: sudo xcode-select --switch /Applications/Xcode_26.4.1.app/Contents/Developer
@@ -24,23 +34,72 @@ jobs:
       - name: Package
         id: package
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${RELEASE_TAG#v}"
           archive="simbeam-control_${version}_darwin_universal.tar.gz"
           staging="$(mktemp -d)"
           mkdir -p "$staging/bin"
           cp .build/release/simbeam-control "$staging/bin/simbeam-control"
           tar -czf "$archive" -C "$staging" bin
-          shasum -a 256 "$archive" > "$archive.sha256"
-          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          digest="$(shasum -a 256 "$archive" | awk '{print $1}')"
+          printf '%s  %s\n' "$digest" "$archive" > "$archive.sha256"
+          {
+            echo "archive=$archive"
+            echo "version=$version"
+            echo "sha256=$digest"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           ARCHIVE: ${{ steps.package.outputs.archive }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "$ARCHIVE" \
-            "$ARCHIVE.sha256" \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes \
-            --verify-tag
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$ARCHIVE" "$ARCHIVE.sha256" --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              "$ARCHIVE" \
+              "$ARCHIVE.sha256" \
+              --title "$RELEASE_TAG" \
+              --generate-notes \
+              --verify-tag
+          fi
+
+      - name: Check out Homebrew tap
+        uses: actions/checkout@v7
+        with:
+          repository: kei-sidorov/homebrew-simbeam
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Homebrew formula
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+          SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          formula="homebrew-tap/Formula/simbeam-control.rb"
+          ruby - "$formula" "$VERSION" "$SHA256" <<'RUBY'
+          file, version, digest = ARGV
+          content = File.read(file)
+          url_pattern = /^\s*url "https:\/\/github\.com\/kei-sidorov\/simbeam-control\/releases\/download\/v[^"]+"$/
+          sha_pattern = /^\s*sha256 "[0-9a-f]{64}"$/
+          abort "formula URL pattern was not found" unless content.match?(url_pattern)
+          abort "formula SHA256 pattern was not found" unless content.match?(sha_pattern)
+          abort "invalid SHA256 output" unless digest.match?(/\A[0-9a-f]{64}\z/)
+
+          url = "https://github.com/kei-sidorov/simbeam-control/releases/download/v#{version}/simbeam-control_#{version}_darwin_universal.tar.gz"
+          content.sub!(url_pattern, %(  url "#{url}"))
+          content.sub!(sha_pattern, %(  sha256 "#{digest}"))
+          File.write(file, content)
+          RUBY
+
+          git -C homebrew-tap diff --check
+          if git -C homebrew-tap diff --quiet; then
+            echo "Homebrew formula is already current"
+            exit 0
+          fi
+
+          git -C homebrew-tap config user.name "github-actions[bot]"
+          git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C homebrew-tap add Formula/simbeam-control.rb
+          git -C homebrew-tap commit -m "simbeam-control ${VERSION}"
+          git -C homebrew-tap push origin HEAD:main

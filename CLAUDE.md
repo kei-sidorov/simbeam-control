@@ -128,9 +128,12 @@ idb code when a small local implementation is straightforward.
 GitHub Actions uses the official `macos-26` runner and explicitly selects Xcode 26.4.1. Pushes and
 pull requests run static analysis plus a universal build. Tags matching `v*` create a GitHub
 Release containing `simbeam-control_<version>_darwin_universal.tar.gz` with the executable under
-`bin/`; the `kei-sidorov/homebrew-simbeam` tap publishes it as
-`kei-sidorov/simbeam/simbeam-control`. The formula has been validated with strict online audit,
-installation, `brew test`, and universal-architecture inspection.
+`bin/`, then update the formula in `kei-sidorov/homebrew-simbeam`. The release workflow requires a
+fine-grained `HOMEBREW_TAP_TOKEN` Actions secret restricted to contents write access on that tap
+repository. Never print, encode, or pass the token in a shell URL. A manual Release workflow
+dispatch accepts an existing tag for idempotent publication repair; it must not be used to move or
+recreate tags. The tap publishes the formula as `kei-sidorov/simbeam/simbeam-control`; it has been
+validated with strict online audit, installation, `brew test`, and universal-architecture inspection.
 
 Universal release build:
 

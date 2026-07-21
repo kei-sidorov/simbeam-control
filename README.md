@@ -31,8 +31,11 @@ The unsigned universal executable is written to `.build/release/simbeam-control`
 both `arm64` and `x86_64`; no Xcode GUI setup or signing identity is required.
 
 GitHub Actions runs the same universal build and static analysis on the official `macos-26` runner
-with Xcode 26.4.1. Version tags (`v*`) publish a tarball containing `bin/simbeam-control` for use by
-the Homebrew tap.
+with Xcode 26.4.1. Version tags (`v*`) publish a tarball containing `bin/simbeam-control` and
+automatically update the formula in `kei-sidorov/homebrew-simbeam`. Cross-repository publishing uses
+the `HOMEBREW_TAP_TOKEN` Actions secret, restricted to contents write access on that tap repository.
+The Release workflow can also be dispatched manually with an existing tag to repair a partial
+publication without moving or recreating the tag.
 
 For a fast native-architecture debug build:
 
