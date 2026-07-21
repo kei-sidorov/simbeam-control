@@ -171,6 +171,44 @@ final class HIDController: @unchecked Sendable {
     }
   }
 
+  func home() {
+    queue.async { [weak self] in
+      guard let self else { return }
+      let events = [
+        ScheduledTouch(delay: 0, data: buttonData(
+          source: UInt32(ButtonEventSourceHomeButton),
+          target: UInt32(ButtonEventTargetHardware),
+          direction: UInt32(ButtonEventTypeDown), keyCode: 0)),
+        ScheduledTouch(delay: 0.01, data: buttonData(
+          source: UInt32(ButtonEventSourceHomeButton),
+          target: UInt32(ButtonEventTargetHardware),
+          direction: UInt32(ButtonEventTypeUp), keyCode: 0)),
+      ]
+      send(events, at: 0)
+    }
+  }
+
+  // key presses and releases a USB HID keyboard usage code (page 0x07). When
+  // shift is set, left-shift (usage 225) is held around the key. Usage/shift are
+  // resolved by the caller from the browser KeyboardEvent.key, so the simulator's
+  // active hardware layout selects the glyph — the same known limitation idb had.
+  func key(usage: UInt32, shift: Bool) {
+    queue.async { [weak self] in
+      guard let self else { return }
+      let shiftUsage: UInt32 = 225
+      var events: [ScheduledTouch] = []
+      if shift {
+        events.append(ScheduledTouch(delay: 0, data: keyData(usage: shiftUsage, direction: UInt32(ButtonEventTypeDown))))
+      }
+      events.append(ScheduledTouch(delay: 0, data: keyData(usage: usage, direction: UInt32(ButtonEventTypeDown))))
+      events.append(ScheduledTouch(delay: 0.01, data: keyData(usage: usage, direction: UInt32(ButtonEventTypeUp))))
+      if shift {
+        events.append(ScheduledTouch(delay: 0, data: keyData(usage: shiftUsage, direction: UInt32(ButtonEventTypeUp))))
+      }
+      send(events, at: 0)
+    }
+  }
+
   func shake() {
     queue.async { [udid] in
       let process = Process()
@@ -236,6 +274,37 @@ final class HIDController: @unchecked Sendable {
     secondPayload.pointee.event.touch.field1 = 1
     secondPayload.pointee.event.touch.field2 = 2
 
+    return Data(bytesNoCopy: destination, count: messageSize, deallocator: .free)
+  }
+
+  // keyData builds a keyboard Indigo message (source/target fixed to the keyboard
+  // service); usage is a USB HID usage code.
+  private func keyData(usage: UInt32, direction: UInt32) -> Data {
+    buttonData(
+      source: UInt32(ButtonEventSourceKeyboard),
+      target: UInt32(ButtonEventTargetKeyboard),
+      direction: direction, keyCode: usage)
+  }
+
+  // buttonData hand-builds a single-payload Indigo button/keyboard message. The
+  // mach header stays zeroed — SimDeviceLegacyHIDClient fills it on send (the
+  // touch path relies on the same). Layout matches FBSimulatorIndigoHID's
+  // buttonMessage: eventType byte = IndigoEventTypeButton, payload.eventKind = 2,
+  // innerSize = one payload.
+  private func buttonData(source: UInt32, target: UInt32, direction: UInt32, keyCode: UInt32) -> Data {
+    let messageSize = MemoryLayout<IndigoMessage>.size
+    guard let destination = calloc(1, messageSize) else {
+      fatalError("failed to allocate an Indigo button message")
+    }
+    let message = destination.assumingMemoryBound(to: IndigoMessage.self)
+    message.pointee.innerSize = UInt32(MemoryLayout<IndigoPayload>.size)
+    message.pointee.eventType = UInt8(IndigoEventTypeButton)
+    message.pointee.payload.eventKind = 2
+    message.pointee.payload.timestamp = mach_absolute_time()
+    message.pointee.payload.event.button.eventSource = source
+    message.pointee.payload.event.button.eventType = direction
+    message.pointee.payload.event.button.eventTarget = target
+    message.pointee.payload.event.button.keyCode = keyCode
     return Data(bytesNoCopy: destination, count: messageSize, deallocator: .free)
   }
 

@@ -63,6 +63,14 @@ final class ControlInput {
           durationMilliseconds: duration)
       case "shake":
         hid.shake()
+      case "home":
+        hid.home()
+      case "key":
+        guard let usage = object["usage"] as? Int, usage >= 0 else {
+          throw ControlError.invalidCommand
+        }
+        let shift = (object["shift"] as? Bool) ?? false
+        hid.key(usage: UInt32(usage), shift: shift)
       default:
         throw ControlError.unsupported(type)
       }

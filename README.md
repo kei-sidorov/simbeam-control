@@ -95,6 +95,8 @@ stdin is newline-delimited JSON, one object per line. Coordinates are in Simulat
 ```json
 {"type":"tap","x":195.0,"y":422.0}
 {"type":"swipe","x1":195,"y1":600,"x2":195,"y2":200,"duration_ms":250}
+{"type":"home"}
+{"type":"key","usage":40,"shift":false}
 {"type":"shake"}
 {"type":"keyframe"}
 {"type":"quality","bitrate":2500000,"fps":24}
@@ -102,7 +104,10 @@ stdin is newline-delimited JSON, one object per line. Coordinates are in Simulat
 
 `keyframe` is coalesced if several requests arrive before the next cadence tick. `quality` updates
 the VideoToolbox bitrate and/or the CFR timer without restarting the process. `shake` posts
-`com.apple.UIKit.SimulatorShake` through `simctl`; touch events use SimulatorKit's Indigo HID path.
+`com.apple.UIKit.SimulatorShake` through `simctl`. Touch, `home`, and `key` all go through
+SimulatorKit's Indigo HID path: `home` presses the hardware Home button; `key` presses a USB HID
+keyboard usage code (page 0x07) with an optional `shift`, so the simulator's active hardware layout
+selects the glyph (the caller maps its key names to usage codes).
 
 ## idb attribution
 
