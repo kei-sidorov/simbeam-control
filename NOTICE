@@ -1,0 +1,7 @@
+simbeam-control includes private API declarations and small adapted code portions from
+facebook/idb at commit 8509ca666b5983171a73338114b7d0325ae15bf1.
+
+facebook/idb is Copyright (c) Meta Platforms, Inc. and affiliates and is licensed
+under the MIT License. A copy is included at PrivateHeaders/LICENSE.facebook-idb.
+
+Upstream source: https://github.com/facebook/idb/tree/8509ca666b5983171a73338114b7d0325ae15bf1

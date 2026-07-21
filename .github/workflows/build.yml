@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.4.1
+        run: sudo xcode-select --switch /Applications/Xcode_26.4.1.app/Contents/Developer
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Static analysis
+        run: |
+          xcodebuild \
+            -project simbeam-control.xcodeproj \
+            -scheme simbeam-control \
+            -configuration Debug \
+            -derivedDataPath .build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            analyze
+
+      - name: Build universal release
+        run: ./Scripts/build-universal.sh
+
+      - name: Verify artifact
+        run: |
+          file .build/release/simbeam-control
+          architectures="$(lipo -archs .build/release/simbeam-control)"
+          [[ "$architectures" == *arm64* ]]
+          [[ "$architectures" == *x86_64* ]]
+          if find .build/release -type d -name '*.framework' | grep -q .; then
+            echo 'Unexpected bundled framework' >&2
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simbeam-control-darwin-universal
+          path: .build/release/simbeam-control
+          if-no-files-found: error

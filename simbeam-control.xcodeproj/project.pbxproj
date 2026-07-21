@@ -1,0 +1,261 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		100000000000000000000001 /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000001 /* Log.swift */; };
+		100000000000000000000002 /* CLIOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000002 /* CLIOptions.swift */; };
+		100000000000000000000003 /* ObjCExceptionBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003 /* ObjCExceptionBridge.m */; };
+		100000000000000000000004 /* ObjCExceptionBridge+Swift.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000004 /* ObjCExceptionBridge+Swift.swift */; };
+		100000000000000000000005 /* SimulatorConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000005 /* SimulatorConnection.swift */; };
+		100000000000000000000006 /* AnnexB.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000006 /* AnnexB.swift */; };
+		100000000000000000000007 /* FramedOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000007 /* FramedOutput.swift */; };
+		100000000000000000000008 /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000008 /* VideoEncoder.swift */; };
+		100000000000000000000009 /* ControlInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000009 /* ControlInput.swift */; };
+		10000000000000000000000A /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20000000000000000000000A /* main.swift */; };
+		10000000000000000000000B /* HIDController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000010 /* HIDController.swift */; };
+		10000000000000000000000C /* SimulatorOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000012 /* SimulatorOrientation.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		200000000000000000000001 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
+		200000000000000000000002 /* CLIOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIOptions.swift; sourceTree = "<group>"; };
+		200000000000000000000003 /* ObjCExceptionBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionBridge.m; sourceTree = "<group>"; };
+		200000000000000000000004 /* ObjCExceptionBridge+Swift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ObjCExceptionBridge+Swift.swift"; sourceTree = "<group>"; };
+		200000000000000000000005 /* SimulatorConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorConnection.swift; sourceTree = "<group>"; };
+		200000000000000000000006 /* AnnexB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnexB.swift; sourceTree = "<group>"; };
+		200000000000000000000007 /* FramedOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FramedOutput.swift; sourceTree = "<group>"; };
+		200000000000000000000008 /* VideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEncoder.swift; sourceTree = "<group>"; };
+		200000000000000000000009 /* ControlInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlInput.swift; sourceTree = "<group>"; };
+		20000000000000000000000A /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		20000000000000000000000B /* ObjCExceptionBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionBridge.h; sourceTree = "<group>"; };
+		20000000000000000000000C /* simbeam-control-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "simbeam-control-Bridging-Header.h"; sourceTree = "<group>"; };
+		20000000000000000000000D /* simbeam-control */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "simbeam-control"; sourceTree = BUILT_PRODUCTS_DIR; };
+		20000000000000000000000E /* NOTICE */ = {isa = PBXFileReference; lastKnownFileType = text; path = NOTICE; sourceTree = "<group>"; };
+		20000000000000000000000F /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
+		200000000000000000000010 /* HIDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HIDController.swift; sourceTree = "<group>"; };
+		200000000000000000000011 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		200000000000000000000012 /* SimulatorOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorOrientation.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		300000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		400000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				400000000000000000000002 /* Sources */,
+				400000000000000000000003 /* Products */,
+				20000000000000000000000E /* NOTICE */,
+				200000000000000000000011 /* README.md */,
+				20000000000000000000000F /* CLAUDE.md */,
+			);
+			sourceTree = "<group>";
+		};
+		400000000000000000000002 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				200000000000000000000001 /* Log.swift */,
+				200000000000000000000002 /* CLIOptions.swift */,
+				200000000000000000000003 /* ObjCExceptionBridge.m */,
+				20000000000000000000000B /* ObjCExceptionBridge.h */,
+				200000000000000000000004 /* ObjCExceptionBridge+Swift.swift */,
+				200000000000000000000005 /* SimulatorConnection.swift */,
+				200000000000000000000012 /* SimulatorOrientation.swift */,
+				200000000000000000000006 /* AnnexB.swift */,
+				200000000000000000000007 /* FramedOutput.swift */,
+				200000000000000000000008 /* VideoEncoder.swift */,
+				200000000000000000000009 /* ControlInput.swift */,
+				200000000000000000000010 /* HIDController.swift */,
+				20000000000000000000000A /* main.swift */,
+				20000000000000000000000C /* simbeam-control-Bridging-Header.h */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		400000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				20000000000000000000000D /* simbeam-control */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		500000000000000000000001 /* simbeam-control */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 800000000000000000000002 /* Build configuration list for PBXNativeTarget "simbeam-control" */;
+			buildPhases = (
+				600000000000000000000001 /* Sources */,
+				300000000000000000000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "simbeam-control";
+			productName = "simbeam-control";
+			productReference = 20000000000000000000000D /* simbeam-control */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		700000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2640;
+				LastUpgradeCheck = 2640;
+			};
+			buildConfigurationList = 800000000000000000000001 /* Build configuration list for PBXProject "simbeam-control" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 400000000000000000000001;
+			productRefGroup = 400000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				500000000000000000000001 /* simbeam-control */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		600000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000001 /* Log.swift in Sources */,
+				100000000000000000000002 /* CLIOptions.swift in Sources */,
+				100000000000000000000003 /* ObjCExceptionBridge.m in Sources */,
+				100000000000000000000004 /* ObjCExceptionBridge+Swift.swift in Sources */,
+				100000000000000000000005 /* SimulatorConnection.swift in Sources */,
+				100000000000000000000006 /* AnnexB.swift in Sources */,
+				100000000000000000000007 /* FramedOutput.swift in Sources */,
+				100000000000000000000008 /* VideoEncoder.swift in Sources */,
+				100000000000000000000009 /* ControlInput.swift in Sources */,
+				10000000000000000000000A /* main.swift in Sources */,
+				10000000000000000000000B /* HIDController.swift in Sources */,
+				10000000000000000000000C /* SimulatorOrientation.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		900000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		900000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		900000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/PrivateHeaders";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_library",
+					"$(SRCROOT)/PrivateHeaders/CoreSimulator/CoreSimulator.tbd",
+				);
+				PRODUCT_NAME = "simbeam-control";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "Sources/simbeam-control-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		900000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/PrivateHeaders";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_library",
+					"$(SRCROOT)/PrivateHeaders/CoreSimulator/CoreSimulator.tbd",
+				);
+				PRODUCT_NAME = "simbeam-control";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "Sources/simbeam-control-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		800000000000000000000001 /* Build configuration list for PBXProject "simbeam-control" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				900000000000000000000001 /* Debug */,
+				900000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		800000000000000000000002 /* Build configuration list for PBXNativeTarget "simbeam-control" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				900000000000000000000003 /* Debug */,
+				900000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 700000000000000000000001 /* Project object */;
+}

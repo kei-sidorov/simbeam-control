@@ -1,0 +1,15 @@
+# Swift / macOS build artifacts
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+Build/
+*.o
+*.dSYM/
+
+# macOS
+.DS_Store
+
+# Local scratch
+/tmp/
