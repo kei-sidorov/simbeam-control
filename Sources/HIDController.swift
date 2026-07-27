@@ -75,6 +75,9 @@ final class HIDController: @unchecked Sendable {
   private let screenScale: Float
   private let messageBuilder: MouseMessageBuilder
   private var client: AnyObject?
+  // last point of an in-progress streamed touch; non-nil means the finger is
+  // down. Guarded by `queue`.
+  private var streamedTouchPoint: CGPoint?
 
   init(
     device: SimDevice,
@@ -125,12 +128,76 @@ final class HIDController: @unchecked Sendable {
   }
 
   func disconnect() {
-    queue.sync { client = nil }
+    queue.sync {
+      if let point = streamedTouchPoint {
+        // never leave the simulator with a stuck finger when the parent goes away
+        perform([ScheduledTouch(delay: 0, data: touchData(direction: .up, x: point.x, y: point.y))])
+        streamedTouchPoint = nil
+      }
+      client = nil
+    }
+  }
+
+  // touchDown / touchMove / touchUp stream one externally driven touch: the
+  // parent controls the trajectory and timing, so curved swipes, long presses,
+  // and drags with pauses all work. Events are delivered immediately as they
+  // arrive instead of being interpolated like `swipe`.
+  func touchDown(x: Double, y: Double) {
+    queue.async { [weak self] in
+      guard let self else { return }
+      do {
+        try validate(x: x, y: y)
+        if let point = streamedTouchPoint {
+          Log.message("touch down while a streamed touch is active; releasing the previous touch")
+          perform([ScheduledTouch(delay: 0, data: touchData(direction: .up, x: point.x, y: point.y))])
+        }
+        streamedTouchPoint = CGPoint(x: x, y: y)
+        perform([ScheduledTouch(delay: 0, data: touchData(direction: .down, x: x, y: y))])
+      } catch {
+        Log.message("touch down failed: \(error.localizedDescription)")
+      }
+    }
+  }
+
+  func touchMove(x: Double, y: Double) {
+    queue.async { [weak self] in
+      guard let self else { return }
+      guard streamedTouchPoint != nil else {
+        Log.message("touch move ignored: no streamed touch is active")
+        return
+      }
+      do {
+        try validate(x: x, y: y)
+        streamedTouchPoint = CGPoint(x: x, y: y)
+        // Indigo has no distinct move message: a move is a down at new coordinates
+        perform([ScheduledTouch(delay: 0, data: touchData(direction: .down, x: x, y: y))])
+      } catch {
+        Log.message("touch move failed: \(error.localizedDescription)")
+      }
+    }
+  }
+
+  func touchUp(x: Double, y: Double) {
+    queue.async { [weak self] in
+      guard let self else { return }
+      guard let previous = streamedTouchPoint else {
+        Log.message("touch up ignored: no streamed touch is active")
+        return
+      }
+      // an out-of-bounds release still lifts the finger at the last valid point
+      let point = (try? validate(x: x, y: y)) != nil ? CGPoint(x: x, y: y) : previous
+      streamedTouchPoint = nil
+      perform([ScheduledTouch(delay: 0, data: touchData(direction: .up, x: point.x, y: point.y))])
+    }
   }
 
   func tap(x: Double, y: Double) {
     queue.async { [weak self] in
       guard let self else { return }
+      guard self.streamedTouchPoint == nil else {
+        Log.message("tap dropped: a streamed touch is active")
+        return
+      }
       do {
         try validate(x: x, y: y)
         perform([
@@ -146,6 +213,10 @@ final class HIDController: @unchecked Sendable {
   func swipe(x1: Double, y1: Double, x2: Double, y2: Double, durationMilliseconds: Int) {
     queue.async { [weak self] in
       guard let self else { return }
+      guard self.streamedTouchPoint == nil else {
+        Log.message("swipe dropped: a streamed touch is active")
+        return
+      }
       do {
         try validate(x: x1, y: y1)
         try validate(x: x2, y: y2)

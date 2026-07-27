@@ -58,6 +58,9 @@ stdin accepts newline-delimited JSON:
 ```json
 {"type":"tap","x":195.0,"y":422.0}
 {"type":"swipe","x1":195,"y1":600,"x2":195,"y2":200,"duration_ms":250}
+{"type":"touch","action":"down","x":195.0,"y":600.0}
+{"type":"touch","action":"move","x":190.0,"y":540.0}
+{"type":"touch","action":"up","x":120.0,"y":210.0}
 {"type":"shake"}
 {"type":"keyframe"}
 {"type":"quality","bitrate":2500000,"fps":24}

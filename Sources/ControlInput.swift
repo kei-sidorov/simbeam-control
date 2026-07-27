@@ -52,6 +52,17 @@ final class ControlInput {
           throw ControlError.invalidCommand
         }
         hid.tap(x: x, y: y)
+      case "touch":
+        guard let action = object["action"] as? String,
+              let x = number(object["x"]), let y = number(object["y"]) else {
+          throw ControlError.invalidCommand
+        }
+        switch action {
+        case "down": hid.touchDown(x: x, y: y)
+        case "move": hid.touchMove(x: x, y: y)
+        case "up": hid.touchUp(x: x, y: y)
+        default: throw ControlError.unsupported("touch action '\(action)'")
+        }
       case "swipe":
         guard let x1 = number(object["x1"]), let y1 = number(object["y1"]),
               let x2 = number(object["x2"]), let y2 = number(object["y2"]),

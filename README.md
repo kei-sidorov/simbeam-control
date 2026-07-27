@@ -98,6 +98,9 @@ stdin is newline-delimited JSON, one object per line. Coordinates are in Simulat
 ```json
 {"type":"tap","x":195.0,"y":422.0}
 {"type":"swipe","x1":195,"y1":600,"x2":195,"y2":200,"duration_ms":250}
+{"type":"touch","action":"down","x":195.0,"y":600.0}
+{"type":"touch","action":"move","x":190.0,"y":540.0}
+{"type":"touch","action":"up","x":120.0,"y":210.0}
 {"type":"home"}
 {"type":"key","usage":40,"shift":false}
 {"type":"shake"}
@@ -107,7 +110,11 @@ stdin is newline-delimited JSON, one object per line. Coordinates are in Simulat
 
 `keyframe` is coalesced if several requests arrive before the next cadence tick. `quality` updates
 the VideoToolbox bitrate and/or the CFR timer without restarting the process. `shake` posts
-`com.apple.UIKit.SimulatorShake` through `simctl`. Touch, `home`, and `key` all go through
+`com.apple.UIKit.SimulatorShake` through `simctl`. `touch` streams one externally driven touch:
+`down`, any number of `move` events, then `up`, with the trajectory and timing fully controlled by
+the parent — this is how curved swipes, drags with pauses, and long presses are performed. While a
+streamed touch is active, `tap` and `swipe` are dropped; a streamed touch left down is released
+automatically on shutdown. Touch, `home`, and `key` all go through
 SimulatorKit's Indigo HID path: `home` presses the hardware Home button; `key` presses a USB HID
 keyboard usage code (page 0x07) with an optional `shift`, so the simulator's active hardware layout
 selects the glyph (the caller maps its key names to usage codes).
