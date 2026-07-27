@@ -9,6 +9,9 @@ do {
 } catch CLIError.help {
   print(CLIOptions.usage)
   exit(0)
+} catch CLIError.protocolQuery {
+  print(ControlProtocol.version)
+  exit(0)
 } catch {
   Log.message("error: \(error.localizedDescription)")
   Log.message(CLIOptions.usage)
@@ -38,6 +41,7 @@ let encoder = VideoEncoder(
 ) { sourceWidth, sourceHeight, width, height in
   Log.json([
     "ready": true,
+    "protocol": ControlProtocol.version,
     "width": Int((Double(sourceWidth) / displayInfo.nativeScale).rounded()),
     "height": Int((Double(sourceHeight) / displayInfo.nativeScale).rounded()),
     "scale": displayInfo.nativeScale,

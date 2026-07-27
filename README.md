@@ -64,12 +64,16 @@ otherwise manage devices.
 The process exits when stdin closes or it receives SIGINT/SIGTERM. Stdout is always binary video;
 logs and the startup handshake are written to stderr.
 
+`simbeam-control --protocol` prints the control protocol version (currently `2`) and exits. The
+daemon preflights this to refuse a helper older than it requires; a binary that predates the flag
+exits non-zero and counts as version 1 (no streamed touch, no app_switcher).
+
 ## stderr handshake
 
 The first stderr line after successful attachment is JSON:
 
 ```json
-{"ready":true,"width":402,"height":874,"scale":3,"encoded_width":1206,"encoded_height":2622}
+{"ready":true,"protocol":2,"width":402,"height":874,"scale":3,"encoded_width":1206,"encoded_height":2622}
 ```
 
 `width` and `height` are Simulator points, while `scale` is the native display scale.

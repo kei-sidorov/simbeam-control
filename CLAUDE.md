@@ -30,6 +30,7 @@ Invocation:
 ```sh
 simbeam-control --udid <UDID> [--fps 30] [--keyframe-interval-ms 2000] \
   [--bitrate 4000000] [--scale 1.0]
+simbeam-control --protocol   # print the control protocol version (2) and exit
 ```
 
 stdout is binary-only. Each record is:
@@ -47,7 +48,7 @@ synthetic frame counter.
 stderr carries the startup handshake and logs. The first line after successful attachment is JSON:
 
 ```json
-{"ready":true,"width":402,"height":874,"scale":3,"encoded_width":300,"encoded_height":654}
+{"ready":true,"protocol":2,"width":402,"height":874,"scale":3,"encoded_width":300,"encoded_height":654}
 ```
 
 Rotation or a genuine framebuffer resize emits another handshake, forces an IDR, and updates SPS

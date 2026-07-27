@@ -1,5 +1,18 @@
 import Foundation
 
+/// The control protocol version this binary speaks, printed by `--protocol` and
+/// carried in the ready handshake. The daemon preflights `--protocol` and
+/// refuses to run against a helper older than its required minimum; a binary
+/// that predates the flag exits non-zero and is treated as version 1.
+///
+/// History:
+///   1 — tap/swipe/home/key/shake/keyframe/quality commands, framed H.264
+///       stdout, stderr ready handshake.
+///   2 — streamed touch (down/move/up) and app_switcher.
+enum ControlProtocol {
+  static let version = 2
+}
+
 struct CLIOptions {
   let udid: UUID
   let fps: Int
@@ -10,6 +23,7 @@ struct CLIOptions {
   static let usage = """
   Usage: simbeam-control --udid <UDID> [--fps 30] [--keyframe-interval-ms 2000]
                          [--bitrate 4000000] [--scale 1.0]
+         simbeam-control --protocol    print the control protocol version and exit
   """
 
   static func parse(_ arguments: [String]) throws -> CLIOptions {
@@ -19,6 +33,9 @@ struct CLIOptions {
       let argument = arguments[index]
       if argument == "--help" || argument == "-h" {
         throw CLIError.help
+      }
+      if argument == "--protocol" {
+        throw CLIError.protocolQuery
       }
       guard argument.hasPrefix("--"), index + 1 < arguments.count else {
         throw CLIError.invalidArgument(argument)
@@ -61,13 +78,14 @@ struct CLIOptions {
 
 enum CLIError: LocalizedError {
   case help
+  case protocolQuery
   case missingUDID
   case invalidArgument(String)
   case invalidValue(String)
 
   var errorDescription: String? {
     switch self {
-    case .help:
+    case .help, .protocolQuery:
       return nil
     case .missingUDID:
       return "--udid is required and must be a UUID"
