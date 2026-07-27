@@ -102,6 +102,7 @@ stdin is newline-delimited JSON, one object per line. Coordinates are in Simulat
 {"type":"touch","action":"move","x":190.0,"y":540.0}
 {"type":"touch","action":"up","x":120.0,"y":210.0}
 {"type":"home"}
+{"type":"app_switcher"}
 {"type":"key","usage":40,"shift":false}
 {"type":"shake"}
 {"type":"keyframe"}
@@ -114,8 +115,9 @@ the VideoToolbox bitrate and/or the CFR timer without restarting the process. `s
 `down`, any number of `move` events, then `up`, with the trajectory and timing fully controlled by
 the parent — this is how curved swipes, drags with pauses, and long presses are performed. While a
 streamed touch is active, `tap` and `swipe` are dropped; a streamed touch left down is released
-automatically on shutdown. Touch, `home`, and `key` all go through
-SimulatorKit's Indigo HID path: `home` presses the hardware Home button; `key` presses a USB HID
+automatically on shutdown. Touch, `home`, `app_switcher`, and `key` all go through
+SimulatorKit's Indigo HID path: `home` presses the hardware Home button; `app_switcher` opens the
+running-apps switcher via a double Home press; `key` presses a USB HID
 keyboard usage code (page 0x07) with an optional `shift`, so the simulator's active hardware layout
 selects the glyph (the caller maps its key names to usage codes).
 

@@ -76,6 +76,8 @@ final class ControlInput {
         hid.shake()
       case "home":
         hid.home()
+      case "app_switcher":
+        hid.appSwitcher()
       case "key":
         guard let usage = object["usage"] as? Int, usage >= 0 else {
           throw ControlError.invalidCommand

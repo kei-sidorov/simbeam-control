@@ -262,6 +262,27 @@ final class HIDController: @unchecked Sendable {
     }
   }
 
+  // appSwitcher opens the running-apps switcher via a double Home press. Both
+  // presses run inside one serialized gesture so nothing can interleave between
+  // them and break the double-press timing window.
+  func appSwitcher() {
+    queue.async { [weak self] in
+      guard let self else { return }
+      var events: [ScheduledTouch] = []
+      for press in 0..<2 {
+        events.append(ScheduledTouch(delay: press == 0 ? 0 : 0.05, data: buttonData(
+          source: UInt32(ButtonEventSourceHomeButton),
+          target: UInt32(ButtonEventTargetHardware),
+          direction: UInt32(ButtonEventTypeDown), keyCode: 0)))
+        events.append(ScheduledTouch(delay: 0.01, data: buttonData(
+          source: UInt32(ButtonEventSourceHomeButton),
+          target: UInt32(ButtonEventTargetHardware),
+          direction: UInt32(ButtonEventTypeUp), keyCode: 0)))
+      }
+      self.perform(events)
+    }
+  }
+
   // key presses and releases a USB HID keyboard usage code (page 0x07). When
   // shift is set, left-shift (usage 225) is held around the key. Usage/shift are
   // resolved by the caller from the browser KeyboardEvent.key, so the simulator's

@@ -61,6 +61,7 @@ stdin accepts newline-delimited JSON:
 {"type":"touch","action":"down","x":195.0,"y":600.0}
 {"type":"touch","action":"move","x":190.0,"y":540.0}
 {"type":"touch","action":"up","x":120.0,"y":210.0}
+{"type":"app_switcher"}
 {"type":"shake"}
 {"type":"keyframe"}
 {"type":"quality","bitrate":2500000,"fps":24}
