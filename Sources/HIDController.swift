@@ -162,10 +162,10 @@ final class HIDController: @unchecked Sendable {
   func touchMove(x: Double, y: Double) {
     queue.async { [weak self] in
       guard let self else { return }
-      guard streamedTouchPoint != nil else {
-        Log.message("touch move ignored: no streamed touch is active")
-        return
-      }
+      // Silently ignored: the parent's channel is lossy, so a move outliving
+      // its touch (lost down, or arriving after up) is expected traffic, not
+      // an anomaly worth a log line per event.
+      guard streamedTouchPoint != nil else { return }
       do {
         try validate(x: x, y: y)
         streamedTouchPoint = CGPoint(x: x, y: y)
@@ -180,10 +180,10 @@ final class HIDController: @unchecked Sendable {
   func touchUp(x: Double, y: Double) {
     queue.async { [weak self] in
       guard let self else { return }
-      guard let previous = streamedTouchPoint else {
-        Log.message("touch up ignored: no streamed touch is active")
-        return
-      }
+      // Silently ignored: clients are told to send up redundantly (it is the
+      // one message that matters over a lossy channel), so duplicates are the
+      // designed steady state — logging each one floods the parent's console.
+      guard let previous = streamedTouchPoint else { return }
       // an out-of-bounds release still lifts the finger at the last valid point
       let point = (try? validate(x: x, y: y)) != nil ? CGPoint(x: x, y: y) : previous
       streamedTouchPoint = nil

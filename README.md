@@ -119,7 +119,9 @@ the VideoToolbox bitrate and/or the CFR timer without restarting the process. `s
 `down`, any number of `move` events, then `up`, with the trajectory and timing fully controlled by
 the parent — this is how curved swipes, drags with pauses, and long presses are performed. While a
 streamed touch is active, `tap` and `swipe` are dropped; a streamed touch left down is released
-automatically on shutdown. Touch, `home`, `app_switcher`, and `key` all go through
+automatically on shutdown. A `move` or `up` with no active streamed touch is ignored **silently**:
+the parent's channel may be lossy and clients are expected to send `up` redundantly, so stray
+events are steady-state traffic, not errors. Touch, `home`, `app_switcher`, and `key` all go through
 SimulatorKit's Indigo HID path: `home` presses the hardware Home button; `app_switcher` opens the
 running-apps switcher via a double Home press; `key` presses a USB HID
 keyboard usage code (page 0x07) with an optional `shift`, so the simulator's active hardware layout
