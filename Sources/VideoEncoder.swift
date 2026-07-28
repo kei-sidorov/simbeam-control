@@ -45,6 +45,11 @@ final class VideoEncoder: @unchecked Sendable {
   private let dimensionsChanged: (Int, Int, Int, Int) -> Void
 
   private var sourceBuffer: CVPixelBuffer?
+  private var started = false
+  /// A surface published between attachment and `start`. Mounting it before
+  /// `start` has read the Simulator orientation would emit a handshake with the
+  /// default portrait geometry, so it is held and mounted by `start` instead.
+  private var surfaceBeforeStart: IOSurface?
   private let imageContext = CIContext(options: [.cacheIntermediates: false])
   private var bgraPool: CVPixelBufferPool?
   private var transferSession: VTPixelTransferSession?
@@ -76,8 +81,10 @@ final class VideoEncoder: @unchecked Sendable {
 
   func start(surface: IOSurface) throws {
     try queue.sync {
+      started = true
       orientation = orientationReader.current()
-      try mount(surface: surface)
+      try mount(surface: surfaceBeforeStart ?? surface)
+      surfaceBeforeStart = nil
       installOrientationTimer()
     }
   }
@@ -85,6 +92,10 @@ final class VideoEncoder: @unchecked Sendable {
   func accept(surface: IOSurface) {
     queue.async { [weak self] in
       guard let self, !self.stopped else { return }
+      guard self.started else {
+        self.surfaceBeforeStart = surface
+        return
+      }
       do {
         try self.mount(surface: surface)
       } catch {

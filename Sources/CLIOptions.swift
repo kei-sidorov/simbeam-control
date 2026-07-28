@@ -9,8 +9,10 @@ import Foundation
 ///   1 — tap/swipe/home/key/shake/keyframe/quality commands, framed H.264
 ///       stdout, stderr ready handshake.
 ///   2 — streamed touch (down/move/up) and app_switcher.
+///   3 — bounded cold-boot framebuffer wait (`--startup-timeout-ms`) and typed
+///       JSON startup failures on stderr.
 enum ControlProtocol {
-  static let version = 2
+  static let version = 3
 }
 
 struct CLIOptions {
@@ -19,10 +21,14 @@ struct CLIOptions {
   let keyframeIntervalMilliseconds: Int
   let bitrate: Int
   let scale: Double
+  let startupTimeoutMilliseconds: Int
+
+  var startupTimeout: TimeInterval { Double(startupTimeoutMilliseconds) / 1000 }
 
   static let usage = """
   Usage: simbeam-control --udid <UDID> [--fps 30] [--keyframe-interval-ms 2000]
                          [--bitrate 4000000] [--scale 1.0]
+                         [--startup-timeout-ms 15000]
          simbeam-control --protocol    print the control protocol version and exit
   """
 
@@ -54,8 +60,13 @@ struct CLIOptions {
     guard let scale = Double(values["--scale"] ?? "1.0"), scale > 0, scale <= 1 else {
       throw CLIError.invalidValue("--scale must be in (0, 1]")
     }
+    let startupTimeout = try positiveInt(
+      values["--startup-timeout-ms"] ?? "15000", name: "--startup-timeout-ms")
 
-    let supported = Set(["--udid", "--fps", "--keyframe-interval-ms", "--bitrate", "--scale"])
+    let supported = Set([
+      "--udid", "--fps", "--keyframe-interval-ms", "--bitrate", "--scale",
+      "--startup-timeout-ms",
+    ])
     if let unknown = values.keys.first(where: { !supported.contains($0) }) {
       throw CLIError.invalidArgument(unknown)
     }
@@ -65,7 +76,8 @@ struct CLIOptions {
       fps: fps,
       keyframeIntervalMilliseconds: keyframeInterval,
       bitrate: bitrate,
-      scale: scale)
+      scale: scale,
+      startupTimeoutMilliseconds: startupTimeout)
   }
 
   private static func positiveInt(_ value: String, name: String) throws -> Int {

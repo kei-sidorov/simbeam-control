@@ -58,22 +58,66 @@ otherwise manage devices.
   --fps 30 \
   --keyframe-interval-ms 2000 \
   --bitrate 4000000 \
-  --scale 1.0
+  --scale 1.0 \
+  --startup-timeout-ms 15000
 ```
 
 The process exits when stdin closes or it receives SIGINT/SIGTERM. Stdout is always binary video;
 logs and the startup handshake are written to stderr.
 
-`simbeam-control --protocol` prints the control protocol version (currently `2`) and exits. The
+`simbeam-control --protocol` prints the control protocol version (currently `3`) and exits. The
 daemon preflights this to refuse a helper older than it requires; a binary that predates the flag
 exits non-zero and counts as version 1 (no streamed touch, no app_switcher).
+
+## Cold boot
+
+A simulator that has just reported `Booted` often exposes its display port before the framebuffer
+IOSurface exists, so starting immediately after `simctl boot` used to fail. Startup now waits for
+the first usable surface — using the CoreSimulator surface-change callback plus a 250 ms fallback
+re-read for versions that do not deliver it — up to `--startup-timeout-ms` (default 15000, minimum
+1; there is no "do not wait" value, and a warm simulator attaches on the first read with no added
+latency anyway).
+
+Once the wait starts, one JSON line announces it, so the ready handshake is not always the first
+stderr line on a cold boot:
+
+```json
+{"waiting":"framebuffer","protocol":3,"timeout_ms":15000}
+```
+
+SIGINT or SIGTERM during the wait ends the process immediately rather than at the deadline: it
+writes the plain-text line `startup cancelled before the simulator framebuffer was available` and
+exits `0`, with no handshake and no error JSON. The deadline bounds waiting, not a wedged private
+CoreSimulator call; if such a call never returns, neither the timeout nor a signal applies.
+
+## Typed startup failures
+
+Anything that goes wrong before the ready handshake is reported as a single JSON line on stderr,
+then the process exits non-zero (`2` for bad arguments, which also print the usage text, `1`
+otherwise):
+
+```json
+{"ready":false,"protocol":3,"error":"display_not_ready","message":"the simulator display produced no framebuffer IOSurface within 15000 ms","retryable":true}
+```
+
+`error` is a stable code; `retryable` says whether the same invocation is worth retrying unchanged.
+
+| code | retryable | meaning |
+| --- | --- | --- |
+| `invalid_arguments` | no | unusable command line |
+| `core_simulator_unavailable` | no | CoreSimulator or the device set could not be opened |
+| `device_not_found` | no | no device with the requested UDID |
+| `device_not_booted` | yes | the device is still booting or was shut down |
+| `display_not_ready` | yes | no display port or no framebuffer IOSurface within the deadline |
+| `encoder_failed` | no | VideoToolbox setup failed |
+| `hid_unavailable` | no | the SimulatorKit HID client could not be created |
 
 ## stderr handshake
 
 The first stderr line after successful attachment is JSON:
 
 ```json
-{"ready":true,"protocol":2,"width":402,"height":874,"scale":3,"encoded_width":1206,"encoded_height":2622}
+{"ready":true,"protocol":3,"width":402,"height":874,"scale":3,"encoded_width":1206,"encoded_height":2622}
 ```
 
 `width` and `height` are Simulator points, while `scale` is the native display scale.

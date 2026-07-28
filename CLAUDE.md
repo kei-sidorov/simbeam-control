@@ -29,8 +29,8 @@ Invocation:
 
 ```sh
 simbeam-control --udid <UDID> [--fps 30] [--keyframe-interval-ms 2000] \
-  [--bitrate 4000000] [--scale 1.0]
-simbeam-control --protocol   # print the control protocol version (2) and exit
+  [--bitrate 4000000] [--scale 1.0] [--startup-timeout-ms 15000]
+simbeam-control --protocol   # print the control protocol version (3) and exit
 ```
 
 stdout is binary-only. Each record is:
@@ -48,11 +48,32 @@ synthetic frame counter.
 stderr carries the startup handshake and logs. The first line after successful attachment is JSON:
 
 ```json
-{"ready":true,"protocol":2,"width":402,"height":874,"scale":3,"encoded_width":300,"encoded_height":654}
+{"ready":true,"protocol":3,"width":402,"height":874,"scale":3,"encoded_width":300,"encoded_height":654}
 ```
 
 Rotation or a genuine framebuffer resize emits another handshake, forces an IDR, and updates SPS
 and PPS. The parent must treat the new handshake as a decoder-geometry change.
+
+A cold-boot framebuffer wait announces itself first, so the handshake is not always the first
+stderr line:
+
+```json
+{"waiting":"framebuffer","protocol":3,"timeout_ms":15000}
+```
+
+Any failure before the handshake is one JSON line with a stable `error` code and a `retryable`
+flag, followed by a non-zero exit (`2` for bad arguments, `1` otherwise):
+
+```json
+{"ready":false,"protocol":3,"error":"display_not_ready","message":"...","retryable":true}
+```
+
+Codes are `invalid_arguments`, `core_simulator_unavailable`, `device_not_found`,
+`device_not_booted`, `display_not_ready`, `encoder_failed`, and `hid_unavailable`; only
+`device_not_booted` and `display_not_ready` are retryable. Codes are protocol surface: never rename
+or reuse one. Keep every typed failure ahead of the handshake — that is why the HID client is
+created before the encoder starts. A signal during the startup wait is not a failure: it prints a
+plain-text cancellation line and exits 0.
 
 stdin accepts newline-delimited JSON:
 
@@ -73,7 +94,10 @@ The process stops cleanly on stdin EOF, SIGINT, or SIGTERM.
 ## Architecture
 
 - `SimulatorConnection.swift`: resolves the requested booted `SimDevice`, locates the main
-  IOSurface-renderable display port, attaches callbacks, and detaches cleanly.
+  IOSurface-renderable display port, attaches callbacks, and detaches cleanly. Port and framebuffer
+  lookup are retried until `--startup-timeout-ms` expires, because a device that has just reported
+  `Booted` may have neither yet; the wait is woken by the surface-change callback, falls back to a
+  250 ms re-read, and is cancellable by SIGINT/SIGTERM.
 - `VideoEncoder.swift`: wraps the IOSurface, performs optional Core Image rotation/scaling,
   converts BGRA to NV12, and feeds the hardware VideoToolbox H.264 encoder.
 - `SimulatorOrientation.swift`: reads the per-UDID Simulator window orientation from
@@ -184,6 +208,8 @@ Before handing off changes, verify as appropriate:
 - Static screens continue producing frames.
 - Rotation produces a new handshake, SPS/PPS, and immediate IDR.
 - Tap, swipe, and shake visibly actuate the selected Simulator.
+- Launching immediately after `simctl boot` waits for the framebuffer and streams without a
+  restart; a deadline that expires reports `display_not_ready` with `retryable: true`.
 
 Previously validated on the active iPhone 17 Pro / iOS 26.1 Simulator: 30 fps CFR, live fps and
 bitrate changes, periodic and forced IDR, tap, smooth swipe, shake, portrait/landscape rotation,
