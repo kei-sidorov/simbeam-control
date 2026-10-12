@@ -9,6 +9,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ObjectiveC
+import XPC
 @preconcurrency import CoreSimulator
 import SimulatorApp
 
@@ -17,6 +18,7 @@ enum HIDError: LocalizedError {
   case symbolUnavailable(String)
   case clientClassUnavailable
   case clientCreationFailed(String)
+  case modernClientNotReady
   case disconnected
   case invalidCoordinate
   case shakeFailed(Int32)
@@ -27,6 +29,7 @@ enum HIDError: LocalizedError {
     case let .symbolUnavailable(symbol): return "SimulatorKit does not export \(symbol)"
     case .clientClassUnavailable: return "SimulatorKit.SimDeviceLegacyHIDClient is unavailable"
     case let .clientCreationFailed(reason): return "could not create the simulator HID client: \(reason)"
+    case .modernClientNotReady: return "DTUHID did not answer the input probe before the startup deadline"
     case .disconnected: return "the simulator HID client is disconnected"
     case .invalidCoordinate: return "touch coordinates must be finite and inside the simulator point space"
     case let .shakeFailed(status): return "simctl shake notification failed with exit status \(status)"
@@ -75,6 +78,7 @@ final class HIDController: @unchecked Sendable {
   private let screenScale: Float
   private let messageBuilder: MouseMessageBuilder
   private var client: AnyObject?
+  private var modernTransport: SimulatorHIDTransport?
   // last point of an in-progress streamed touch; non-nil means the finger is
   // down. Guarded by `queue`.
   private var streamedTouchPoint: CGPoint?
@@ -83,11 +87,17 @@ final class HIDController: @unchecked Sendable {
     device: SimDevice,
     udid: UUID,
     displayInfo: SimulatorDisplayInfo,
-    developerDirectory: String
+    developerDirectory: String,
+    startupDeadline: TimeInterval
   ) throws {
-    let simulatorKitPath = developerDirectory + "/Library/PrivateFrameworks/SimulatorKit.framework"
-    guard let bundle = Bundle(path: simulatorKitPath) else {
-      throw HIDError.simulatorKitUnavailable("not found at \(simulatorKitPath)")
+    let developerURL = URL(fileURLWithPath: developerDirectory, isDirectory: true)
+    let simulatorKitPaths = [
+      developerURL.appendingPathComponent("Library/PrivateFrameworks/SimulatorKit.framework").path,
+      developerURL.deletingLastPathComponent()
+        .appendingPathComponent("SharedFrameworks/SimulatorKit.framework").path,
+    ]
+    guard let bundle = simulatorKitPaths.compactMap({ Bundle(path: $0) }).first else {
+      throw HIDError.simulatorKitUnavailable("not found at \(simulatorKitPaths.joined(separator: ", "))")
     }
     if !bundle.isLoaded {
       do {
@@ -125,15 +135,23 @@ final class HIDController: @unchecked Sendable {
     self.pixelSize = CGSize(
       width: Double(displayInfo.pointWidth) * displayInfo.nativeScale,
       height: Double(displayInfo.pointHeight) * displayInfo.nativeScale)
+    // Legacy Indigo delivery can succeed without actuating iOS 26/27 guests under Xcode 27.
+    let simulatorKitXcode = (bundle.infoDictionary?["DTXcode"] as? String).flatMap(Int.init) ?? 0
+    if device.runtimeIdentifier.contains("iOS-27-")
+      || (device.runtimeIdentifier.contains("iOS-26-") && simulatorKitXcode >= 2700) {
+      modernTransport = try SimulatorHIDTransport.connect(device: device, deadline: startupDeadline)
+    }
   }
 
   func disconnect() {
     queue.sync {
       if let point = streamedTouchPoint {
         // never leave the simulator with a stuck finger when the parent goes away
-        perform([ScheduledTouch(delay: 0, data: touchData(direction: .up, x: point.x, y: point.y))])
+        perform([ScheduledTouch(delay: 0, event: HIDEvent.touch(direction: .up, x: point.x, y: point.y))])
         streamedTouchPoint = nil
       }
+      modernTransport?.drain()
+      modernTransport = nil
       client = nil
     }
   }
@@ -149,10 +167,10 @@ final class HIDController: @unchecked Sendable {
         try validate(x: x, y: y)
         if let point = streamedTouchPoint {
           Log.message("touch down while a streamed touch is active; releasing the previous touch")
-          perform([ScheduledTouch(delay: 0, data: touchData(direction: .up, x: point.x, y: point.y))])
+          perform([ScheduledTouch(delay: 0, event: HIDEvent.touch(direction: .up, x: point.x, y: point.y))])
         }
         streamedTouchPoint = CGPoint(x: x, y: y)
-        perform([ScheduledTouch(delay: 0, data: touchData(direction: .down, x: x, y: y))])
+        perform([ScheduledTouch(delay: 0, event: HIDEvent.touch(direction: .down, x: x, y: y))])
       } catch {
         Log.message("touch down failed: \(error.localizedDescription)")
       }
@@ -170,7 +188,7 @@ final class HIDController: @unchecked Sendable {
         try validate(x: x, y: y)
         streamedTouchPoint = CGPoint(x: x, y: y)
         // Indigo has no distinct move message: a move is a down at new coordinates
-        perform([ScheduledTouch(delay: 0, data: touchData(direction: .down, x: x, y: y))])
+        perform([ScheduledTouch(delay: 0, event: HIDEvent.touch(direction: .down, x: x, y: y))])
       } catch {
         Log.message("touch move failed: \(error.localizedDescription)")
       }
@@ -187,7 +205,7 @@ final class HIDController: @unchecked Sendable {
       // an out-of-bounds release still lifts the finger at the last valid point
       let point = (try? validate(x: x, y: y)) != nil ? CGPoint(x: x, y: y) : previous
       streamedTouchPoint = nil
-      perform([ScheduledTouch(delay: 0, data: touchData(direction: .up, x: point.x, y: point.y))])
+      perform([ScheduledTouch(delay: 0, event: HIDEvent.touch(direction: .up, x: point.x, y: point.y))])
     }
   }
 
@@ -201,8 +219,8 @@ final class HIDController: @unchecked Sendable {
       do {
         try validate(x: x, y: y)
         perform([
-          ScheduledTouch(delay: 0, data: touchData(direction: .down, x: x, y: y)),
-          ScheduledTouch(delay: 0.01, data: touchData(direction: .up, x: x, y: y)),
+          ScheduledTouch(delay: 0, event: HIDEvent.touch(direction: .down, x: x, y: y)),
+          ScheduledTouch(delay: 0.01, event: HIDEvent.touch(direction: .up, x: x, y: y)),
         ])
       } catch {
         Log.message("tap failed: \(error.localizedDescription)")
@@ -231,14 +249,14 @@ final class HIDController: @unchecked Sendable {
           let y = y1 + (y2 - y1) * progress
           events.append(ScheduledTouch(
             delay: stepDelay,
-            data: touchData(direction: .down, x: x, y: y)))
+            event: HIDEvent.touch(direction: .down, x: x, y: y)))
         }
         events.append(ScheduledTouch(
           delay: stepDelay,
-          data: touchData(direction: .down, x: x2, y: y2)))
+          event: HIDEvent.touch(direction: .down, x: x2, y: y2)))
         events.append(ScheduledTouch(
           delay: 0,
-          data: touchData(direction: .up, x: x2, y: y2)))
+          event: HIDEvent.touch(direction: .up, x: x2, y: y2)))
         perform(events)
       } catch {
         Log.message("swipe failed: \(error.localizedDescription)")
@@ -250,11 +268,11 @@ final class HIDController: @unchecked Sendable {
     queue.async { [weak self] in
       guard let self else { return }
       self.perform([
-        ScheduledTouch(delay: 0, data: buttonData(
+        ScheduledTouch(delay: 0, event: HIDEvent.button(
           source: UInt32(ButtonEventSourceHomeButton),
           target: UInt32(ButtonEventTargetHardware),
           direction: UInt32(ButtonEventTypeDown), keyCode: 0)),
-        ScheduledTouch(delay: 0.01, data: buttonData(
+        ScheduledTouch(delay: self.modernTransport == nil ? 0.01 : 0.05, event: HIDEvent.button(
           source: UInt32(ButtonEventSourceHomeButton),
           target: UInt32(ButtonEventTargetHardware),
           direction: UInt32(ButtonEventTypeUp), keyCode: 0)),
@@ -270,11 +288,11 @@ final class HIDController: @unchecked Sendable {
       guard let self else { return }
       var events: [ScheduledTouch] = []
       for press in 0..<2 {
-        events.append(ScheduledTouch(delay: press == 0 ? 0 : 0.05, data: buttonData(
+        events.append(ScheduledTouch(delay: press == 0 ? 0 : 0.05, event: HIDEvent.button(
           source: UInt32(ButtonEventSourceHomeButton),
           target: UInt32(ButtonEventTargetHardware),
           direction: UInt32(ButtonEventTypeDown), keyCode: 0)))
-        events.append(ScheduledTouch(delay: 0.01, data: buttonData(
+        events.append(ScheduledTouch(delay: self.modernTransport == nil ? 0.01 : 0.05, event: HIDEvent.button(
           source: UInt32(ButtonEventSourceHomeButton),
           target: UInt32(ButtonEventTargetHardware),
           direction: UInt32(ButtonEventTypeUp), keyCode: 0)))
@@ -293,12 +311,12 @@ final class HIDController: @unchecked Sendable {
       let shiftUsage: UInt32 = 225
       var events: [ScheduledTouch] = []
       if shift {
-        events.append(ScheduledTouch(delay: 0, data: keyData(usage: shiftUsage, direction: UInt32(ButtonEventTypeDown))))
+        events.append(ScheduledTouch(delay: 0, event: keyEvent(usage: shiftUsage, direction: UInt32(ButtonEventTypeDown))))
       }
-      events.append(ScheduledTouch(delay: 0, data: keyData(usage: usage, direction: UInt32(ButtonEventTypeDown))))
-      events.append(ScheduledTouch(delay: 0.01, data: keyData(usage: usage, direction: UInt32(ButtonEventTypeUp))))
+      events.append(ScheduledTouch(delay: 0, event: keyEvent(usage: usage, direction: UInt32(ButtonEventTypeDown))))
+      events.append(ScheduledTouch(delay: 0.01, event: keyEvent(usage: usage, direction: UInt32(ButtonEventTypeUp))))
       if shift {
-        events.append(ScheduledTouch(delay: 0, data: keyData(usage: shiftUsage, direction: UInt32(ButtonEventTypeUp))))
+        events.append(ScheduledTouch(delay: 0, event: keyEvent(usage: shiftUsage, direction: UInt32(ButtonEventTypeUp))))
       }
       self.perform(events)
     }
@@ -333,7 +351,7 @@ final class HIDController: @unchecked Sendable {
     }
   }
 
-  private func touchData(direction: TouchDirection, x: Double, y: Double) -> Data {
+  private func legacyTouchData(direction: TouchDirection, x: Double, y: Double) -> Data {
     var point = CGPoint(
       x: (x * Double(screenScale)) / pixelSize.width,
       y: (y * Double(screenScale)) / pixelSize.height)
@@ -372,21 +390,15 @@ final class HIDController: @unchecked Sendable {
     return Data(bytesNoCopy: destination, count: messageSize, deallocator: .free)
   }
 
-  // keyData builds a keyboard Indigo message (source/target fixed to the keyboard
-  // service); usage is a USB HID usage code.
-  private func keyData(usage: UInt32, direction: UInt32) -> Data {
-    buttonData(
+  private func keyEvent(usage: UInt32, direction: UInt32) -> HIDEvent {
+    HIDEvent.button(
       source: UInt32(ButtonEventSourceKeyboard),
       target: UInt32(ButtonEventTargetKeyboard),
       direction: direction, keyCode: usage)
   }
 
-  // buttonData hand-builds a single-payload Indigo button/keyboard message. The
-  // mach header stays zeroed — SimDeviceLegacyHIDClient fills it on send (the
-  // touch path relies on the same). Layout matches FBSimulatorIndigoHID's
-  // buttonMessage: eventType byte = IndigoEventTypeButton, payload.eventKind = 2,
-  // innerSize = one payload.
-  private func buttonData(source: UInt32, target: UInt32, direction: UInt32, keyCode: UInt32) -> Data {
+  // The mach header stays zeroed because SimDeviceLegacyHIDClient fills it on send.
+  private func legacyButtonData(source: UInt32, target: UInt32, direction: UInt32, keyCode: UInt32) -> Data {
     let messageSize = MemoryLayout<IndigoMessage>.size
     guard let destination = calloc(1, messageSize) else {
       fatalError("failed to allocate an Indigo button message")
@@ -403,25 +415,38 @@ final class HIDController: @unchecked Sendable {
     return Data(bytesNoCopy: destination, count: messageSize, deallocator: .free)
   }
 
-  // perform delivers a gesture's events in order on `queue`, blocking until each
-  // event's HID delivery completes before moving on. Because `queue` is serial,
-  // one gesture finishes entirely before the next begins — so rapid taps stay
-  // discrete instead of collapsing into a simultaneous multi-finger touch. Must
-  // be called on `queue`.
+  // Must run on the gesture queue so contacts cannot interleave into a multi-finger touch.
   private func perform(_ events: [ScheduledTouch]) {
     for event in events {
       if event.delay > 0 {
         Thread.sleep(forTimeInterval: event.delay)
       }
-      deliver(event.data)
+      deliver(event.event)
     }
   }
 
-  // deliver sends one Indigo message and waits for the client's completion. The
-  // callback lands on completionQueue (not `queue`, which we are blocking), so
-  // there is no self-deadlock. The 1s cap keeps a wedged/disconnected client
-  // from hanging shutdown (disconnect() takes `queue` via sync).
-  private func deliver(_ data: Data) {
+  // Legacy completion runs off the gesture queue, with a deadline so a disconnected client cannot hang shutdown.
+  private func deliver(_ event: HIDEvent) {
+    if let modernTransport {
+      switch event {
+      case let .touch(direction, x, y):
+        modernTransport.touch(direction: direction, x: x / pointSize.width, y: y / pointSize.height)
+      case let .button(_, target, direction, keyCode):
+        if target == UInt32(ButtonEventTargetKeyboard) {
+          modernTransport.key(usage: UInt64(keyCode), state: UInt64(direction))
+        } else {
+          modernTransport.button(state: UInt64(direction))
+        }
+      }
+      return
+    }
+    let data: Data
+    switch event {
+    case let .touch(direction, x, y):
+      data = legacyTouchData(direction: direction, x: x, y: y)
+    case let .button(source, target, direction, keyCode):
+      data = legacyButtonData(source: source, target: target, direction: direction, keyCode: keyCode)
+    }
     let done = DispatchSemaphore(value: 0)
     send(data) { error in
       if let error {
@@ -451,5 +476,157 @@ final class HIDController: @unchecked Sendable {
 
 private struct ScheduledTouch {
   let delay: TimeInterval
-  let data: Data
+  let event: HIDEvent
+}
+
+private enum HIDEvent {
+  case touch(direction: TouchDirection, x: Double, y: Double)
+  case button(source: UInt32, target: UInt32, direction: UInt32, keyCode: UInt32)
+}
+
+private final class SimulatorHIDTransport {
+  private typealias MakeEndpoint = @convention(c) (mach_port_t, UInt64, UInt64) -> Unmanaged<AnyObject>?
+  private typealias MakeConnection = @convention(c) (xpc_object_t) -> Unmanaged<AnyObject>?
+  private typealias EnableSimulator = @convention(c) (xpc_connection_t) -> Void
+  private let connection: xpc_connection_t
+  private var contactActive = false
+  private let replyQueue = DispatchQueue(label: "com.simbeam.control.dtuhid.reply")
+  private static let service = "com.apple.coredevice.feature.remote.hid.digitizer"
+
+  static func connect(device: SimDevice, deadline: TimeInterval) throws -> SimulatorHIDTransport {
+    for attempt in 1...5 {
+      let remaining = deadline - ProcessInfo.processInfo.systemUptime
+      guard remaining > 0 else { throw HIDError.modernClientNotReady }
+      do {
+        return try SimulatorHIDTransport(device: device, probeTimeout: min(4, remaining))
+      } catch HIDError.modernClientNotReady {
+        let remaining = deadline - ProcessInfo.processInfo.systemUptime
+        guard attempt < 5, remaining > 0 else { throw HIDError.modernClientNotReady }
+        Log.message("DTUHID is not ready; retrying input connection before the startup deadline")
+        Thread.sleep(forTimeInterval: min(1, remaining))
+      }
+    }
+    throw HIDError.modernClientNotReady
+  }
+
+  private init(device: SimDevice, probeTimeout: TimeInterval) throws {
+    guard let handle = dlopen(nil, RTLD_NOW) else {
+      throw HIDError.simulatorKitUnavailable("DTUHID symbols unavailable")
+    }
+    defer { dlclose(handle) }
+    guard let endpointSymbol = dlsym(handle, "xpc_endpoint_create_mach_port_4sim"),
+          let connectionSymbol = dlsym(handle, "xpc_connection_create_from_endpoint"),
+          let simulatorSymbol = dlsym(handle, "xpc_connection_enable_sim2host_4sim") else {
+      throw HIDError.simulatorKitUnavailable("DTUHID connection symbols unavailable")
+    }
+    var error: NSError?
+    let port = device.lookup(Self.service, error: &error)
+    guard port != MACH_PORT_NULL else {
+      throw error ?? NSError(domain: "com.simbeam.control.dtuhid", code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "DTUHID service lookup failed"])
+    }
+    let makeEndpoint = unsafeBitCast(endpointSymbol, to: MakeEndpoint.self)
+    let makeConnection = unsafeBitCast(connectionSymbol, to: MakeConnection.self)
+    let enableSimulator = unsafeBitCast(simulatorSymbol, to: EnableSimulator.self)
+    guard let endpoint = makeEndpoint(port, 0, 0)?.takeRetainedValue() as? xpc_object_t,
+          let connection = makeConnection(endpoint)?.takeRetainedValue() as? xpc_connection_t else {
+      throw HIDError.simulatorKitUnavailable("DTUHID connection creation failed")
+    }
+    self.connection = connection
+    // Without sim2host mode the guest can accept the connection but never receive its messages.
+    enableSimulator(connection)
+    xpc_connection_set_target_queue(connection, replyQueue)
+    xpc_connection_set_event_handler(connection) { event in
+      if xpc_get_type(event) == XPC_TYPE_ERROR {
+        let description = xpc_copy_description(event)
+        defer { free(description) }
+        Log.message("HID transport: \(String(cString: description))")
+      }
+    }
+    xpc_connection_resume(connection)
+    // A successful lookup can precede dtuhidd startup; require a harmless round-trip before accepting input.
+    let done = DispatchSemaphore(value: 0)
+    let probe = envelope(type: "IndigoKeyboardButtonEvent", barrier: true)
+    let payload = xpc_dictionary_create(nil, nil, 0)
+    xpc_dictionary_set_uint64(payload, "usageCode", 0)
+    xpc_dictionary_set_uint64(payload, "state", 2)
+    xpc_dictionary_set_value(probe, "payload", payload)
+    let result = HIDProbeResult()
+    xpc_connection_send_message_with_reply(connection, probe, replyQueue) { reply in
+      result.ok = xpc_get_type(reply) != XPC_TYPE_ERROR
+      done.signal()
+    }
+    guard done.wait(timeout: .now() + probeTimeout) == .success, result.ok else {
+      xpc_connection_cancel(connection)
+      throw HIDError.modernClientNotReady
+    }
+    // The liveness reply precedes the guest opening its HID device.
+    Thread.sleep(forTimeInterval: 0.2)
+  }
+
+  deinit { xpc_connection_cancel(connection) }
+
+  func touch(direction: TouchDirection, x: Double, y: Double) {
+    let phase: UInt64
+    switch direction {
+    case .down:
+      phase = contactActive ? 1 : 0
+      contactActive = true
+    case .up:
+      phase = 2
+      contactActive = false
+    }
+    let point = xpc_dictionary_create(nil, nil, 0)
+    xpc_dictionary_set_double(point, "x", x)
+    xpc_dictionary_set_double(point, "y", y)
+    let payload = xpc_dictionary_create(nil, nil, 0)
+    xpc_dictionary_set_value(payload, "pointOne", point)
+    // dtuhidd requires unsigned phases and an omitted pointTwo for single-finger input.
+    xpc_dictionary_set_uint64(payload, "eventType", phase)
+    xpc_dictionary_set_uint64(payload, "edge", 0)
+    xpc_dictionary_set_uint64(payload, "target", 0)
+    send(type: "IndigoDigitizerEvent", payload: payload)
+  }
+
+  func key(usage: UInt64, state: UInt64) {
+    let payload = xpc_dictionary_create(nil, nil, 0)
+    xpc_dictionary_set_uint64(payload, "usageCode", usage)
+    xpc_dictionary_set_uint64(payload, "state", state)
+    send(type: "IndigoKeyboardButtonEvent", payload: payload)
+  }
+
+  func button(state: UInt64) {
+    let payload = xpc_dictionary_create(nil, nil, 0)
+    xpc_dictionary_set_uint64(payload, "usagePage", 0x0C)
+    xpc_dictionary_set_uint64(payload, "usageCode", 0x40)
+    xpc_dictionary_set_uint64(payload, "state", state)
+    send(type: "IndigoButtonEvent", payload: payload)
+  }
+
+  func drain() {
+    let done = DispatchSemaphore(value: 0)
+    xpc_connection_send_barrier(connection) { done.signal() }
+    _ = done.wait(timeout: .now() + 1)
+    // XPC's send barrier precedes guest consumption; let the final touch-up arrive before cancellation.
+    Thread.sleep(forTimeInterval: 0.08)
+  }
+
+  private func send(type: String, payload: xpc_object_t) {
+    let message = envelope(type: type, barrier: false)
+    xpc_dictionary_set_value(message, "payload", payload)
+    xpc_connection_send_message(connection, message)
+  }
+
+  private func envelope(type: String, barrier: Bool) -> xpc_object_t {
+    let message = xpc_dictionary_create(nil, nil, 0)
+    xpc_dictionary_set_string(message, "messageType", type)
+    xpc_dictionary_set_string(message, "featureIdentifier", Self.service)
+    xpc_dictionary_set_bool(message, "isBarrier", barrier)
+    return message
+  }
+}
+
+// The reply writes before signaling; the waiting thread reads only after a successful wait.
+private final class HIDProbeResult: @unchecked Sendable {
+  var ok = false
 }

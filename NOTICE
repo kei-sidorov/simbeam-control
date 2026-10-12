@@ -5,3 +5,5 @@ facebook/idb is Copyright (c) Meta Platforms, Inc. and affiliates and is license
 under the MIT License. A copy is included at PrivateHeaders/LICENSE.facebook-idb.
 
 Upstream source: https://github.com/facebook/idb/tree/8509ca666b5983171a73338114b7d0325ae15bf1
+
+The simulator-specific DTUHID connection, digitizer, keyboard, and Home-button wire protocols were implemented with reference to facebook/idb at commit b5ae4f628f386853cd1f8fdc2ce484cd0246a229 (FBSimulatorControl/XPC/SimulatorXPCConnection.swift and FBSimulatorControl/HID/SimulatorDTUHIDConnection.swift, DTUHIDModels.swift, SimulatorDigitizerHIDTransport.swift, and SimulatorHIDButtonIdentity.swift), under the same MIT License included above.

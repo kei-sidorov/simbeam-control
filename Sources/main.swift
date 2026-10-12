@@ -90,6 +90,7 @@ let terminateSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: li
 terminateSource.setEventHandler { terminate() }
 terminateSource.resume()
 
+let startupDeadline = ProcessInfo.processInfo.systemUptime + options.startupTimeout
 let initialSurface: IOSurface
 do {
   initialSurface = try connection.attach(
@@ -124,7 +125,8 @@ do {
     device: connection.device,
     udid: options.udid,
     displayInfo: connection.displayInfo,
-    developerDirectory: developerDirectory)
+    developerDirectory: developerDirectory,
+    startupDeadline: startupDeadline)
 } catch {
   StartupFailure.hidUnavailable.report(error)
   connection.detach()
